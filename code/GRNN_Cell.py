@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
-from torch_geometric.nn import SAGEConv, TransformerConv, GATConv, GATv2Conv
+from torch_geometric.nn import SAGEConv, TransformerConv, GATConv, GATv2Conv, GraphConv
 from torch_geometric.utils import dropout_adj
 from torch.nn import ReLU
 
@@ -66,6 +66,11 @@ class GRNN_Cell(torch.nn.Module):
             self.conv_x_z = GraphConv(in_channels=self.in_channels + self.out_channels, out_channels=self.out_channels, aggr = self.aggr)
             self.conv_x_h = GraphConv(in_channels=self.in_channels + self.out_channels, out_channels=self.out_channels, aggr = self.aggr)
             self.conv_x_r = GraphConv(in_channels=self.in_channels + self.out_channels, out_channels=self.out_channels, aggr = self.aggr)
+
+        # elif self.graph_layer == 'AGCRN':
+        #     self.conv_x_z = ConvGRU(in_channels=self.in_channels + self.out_channels, out_channels=self.out_channels, aggr = self.aggr)
+        #     self.conv_x_h = ConvGRU(in_channels=self.in_channels + self.out_channels, out_channels=self.out_channels, aggr = self.aggr)
+        #     self.conv_x_r = ConvGRU(in_channels=self.in_channels + self.out_channels, out_channels=self.out_channels, aggr = self.aggr)
         else:
             raise NotImplementedError("graph layer not implemented")
 
