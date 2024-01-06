@@ -7,6 +7,8 @@ from torch.nn import ReLU
 from torchvision.models.optical_flow.raft import ConvGRU
 from torch.nn import Parameter
 
+from DConv import DConv
+
 
 class GRNN_Cell(torch.nn.Module):
     '''
@@ -33,7 +35,6 @@ class GRNN_Cell(torch.nn.Module):
         self.self_loop = self_loop
         self.head_concat = head_concat
         self.aggr = aggr
-
         self._create_parameters_and_layers()
 
     def _create_parameters_and_layers(self):
@@ -88,17 +89,24 @@ class GRNN_Cell(torch.nn.Module):
             self.conv_x_r = GraphConv(in_channels=self.in_channels + self.out_channels, out_channels=self.out_channels,
                                       aggr=self.aggr)
 
+        elif self.graph_layer == 'DConv':
+            self.conv_x_z = DConv(in_channels=self.in_channels + self.out_channels, out_channels=self.out_channels,
+                                      K=self.K,bias=self.bias)
+            self.conv_x_h = DConv(in_channels=self.in_channels + self.out_channels, out_channels=self.out_channels,
+                                      K=self.K,bias=self.bias)
+            self.conv_x_r = DConv(in_channels=self.in_channels + self.out_channels, out_channels=self.out_channels,
+                                      K=self.K,bias=self.bias)
 
         else:
             raise NotImplementedError("graph layer not implemented")
 
-    def deformation(self, xt, ht, S, Q):
-        for i in range(1, 5):
-            if (i % 2 == 0):
-                ht = (2 * torch.sigmoid(xt @ S)) * ht
-            else:
-                xt = (2 * torch.sigmoid(ht @ Q)) * xt
-        return xt, ht
+    # def deformation(self, xt, ht, S, Q):
+    #     for i in range(1, 5):
+    #         if (i % 2 == 0):
+    #             ht = (2 * torch.sigmoid(xt @ S)) * ht
+    #         else:
+    #             xt = (2 * torch.sigmoid(ht @ Q)) * xt
+    #     return xt, ht
 
     def _set_hidden_state(self, X, H):
         if H is None:
@@ -150,9 +158,8 @@ class GRNN_Cell(torch.nn.Module):
             * **H** (PyTorch Float Tensor) - Hidden state matrix for all nodes.
         """
         H = self._set_hidden_state(X, H)
-        Q = Parameter(torch.Tensor(H.shape[1], X.shape[1])).to(X.device)
-        S = Parameter(torch.Tensor(X.shape[1], H.shape[1])).to(X.device)
-        X, H = self.deformation(X, H, S, Q)  # mogrification
+        deform = Deformation(X,H)
+        X, H = deform.deformation(X, H)  # mogrification
         Z = self._calculate_update_gate(X, edge_index, H, edge_weight)
         R = self._calculate_reset_gate(X, edge_index, H, edge_weight)
         H_tilde = self._calculate_candidate_state(X, edge_index, H, R, edge_weight)
@@ -179,3 +186,36 @@ class GRNN_Cell(torch.nn.Module):
         _, attention_h = self.conv_x_h(H_tilde, edge_index, edge_weight, return_attention_weights=True)
 
         return attention_z, attention_r, attention_h
+
+
+
+
+
+class Deformation(nn.Module):
+    def __init__(self, X, H):
+        super().__init__()
+        self.Q = Parameter(torch.rand(H.shape[1],X.shape[1])).to(X.device)
+        self.R = Parameter(torch.rand(X.shape[1],H.shape[1])).to(X.device)
+        self.init_weights()
+
+    def init_weights(self):
+        """
+        权重初始化，对于W,Q,R使用xavier
+        :return:
+        """
+        for p in self.parameters():
+            nn.init.xavier_uniform_(p.data)
+
+
+    def deformation(self, xt, ht):
+
+        for i in range(1, 5):
+            if (i % 2 == 0):
+                ht = 2 * (torch.sigmoid( xt @ self.R ) * ht)
+            else:
+                xt = 2 * (torch.sigmoid( ht @ self.Q ) * xt)
+
+        ht = torch.sigmoid(ht)
+        xt = torch.sigmoid(xt)
+
+        return xt, ht

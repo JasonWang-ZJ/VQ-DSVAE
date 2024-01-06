@@ -79,7 +79,7 @@ dropout = 0.2
 graph_layer = args.graph_layer
 edge_dropout = args.edge_dropout
 decode_steps = len(range(0,window_size, sample_time))
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device( "cpu")
 
 if args.highD_data:
     n_lane = 3
@@ -157,7 +157,7 @@ all_xs = np.concatenate(all_xs)
 all_index = [(i,val) for i, l_val in enumerate(all_index) for val in l_val ]
 all_index = np.array(all_index)
 
-## eval metrics
+## eval metrics`
 dict_eval = {}
 dict_eval['len_smaple'] = len(loss_all)
 dict_eval['num_anom'] = sum(label_all)

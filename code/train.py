@@ -32,7 +32,7 @@ parser.add_argument('--clip_grad',type=float, default =1)
 parser.add_argument('--loss_rate_lane',type=float, default = 2, help = 'weighting paramter in loss function for the lane loss term')
 parser.add_argument('--loss_rate_acc',type=float, default = 2, help = 'weighting paramter in loss function for the acceleration loss term')
 parser.add_argument('--loss_rate_speed',type=float, default = 1, help = 'weighting paramter in loss function for the speed loss term')
-parser.add_argument('--GPU',type=str, default = "1")
+parser.add_argument('--GPU',type=str, default = "0")
 parser.add_argument('--epochs',type=int, default = 500)
 parser.add_argument('--experiment_name',type=str, default = '', help='unique experiment name, used to save results to dir')
 parser.add_argument('--verbal',action='store_true', default = False, help='print training results')
@@ -43,7 +43,7 @@ parser.add_argument('--seed',type=int, default = 1)
 args = parser.parse_args()
 
 print(args)
-os.environ["CUDA_VISIBLE_DEVICES"] = args.GPU
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 import torch
 import numpy as np
@@ -142,7 +142,7 @@ dropout = 0.2
 graph_layer = args.graph_layer
 edge_dropout = args.edge_dropout
 decode_steps = len(range(0,window_size, sample_time))
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda")
 
 if args.highD_data:
     n_lane = 3
