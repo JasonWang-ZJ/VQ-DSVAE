@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 # coding: utf-8
-
-import argparse
 import os
 import torch
 import numpy as np
@@ -26,7 +24,7 @@ from model import DSAB
 parser = argparse.ArgumentParser()
 # testing parameter
 parser.add_argument('--train_file_name',type=str, default = 'simulation_processed', help='parent dir for training data file')
-parser.add_argument('--experiment_name',type=str, default = 'DSAB', help='unique experiment name, used to read results from dir')
+parser.add_argument('--experiment_name',type=str, default = 'vq_module_test5', help='unique experiment name, used to read results from dir')
 parser.add_argument('--test_scenario_file',type=str, default = 'testing_comprehensive', help = 'test scenario: testing_comprehensive, testing_stalled_car, testing_slow, testing_speeding, testing_tailgating')
 parser.add_argument('--dist_stretch',type=float, default = 0.15, help= 'highway stretch distance in miles for anomaly detecting')
 test_args = parser.parse_args()
@@ -78,8 +76,11 @@ encode_dim = hidden_dim if args.encode_dim == -1 else args.encode_dim
 dropout = 0.2
 graph_layer = args.graph_layer
 edge_dropout = args.edge_dropout
-decode_steps = len(range(0,window_size, sample_time))
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+decode_steps = len(range(0, window_size, sample_time))
+device = torch.device("cuda:5" if torch.cuda.is_available() else "cpu")
+vq_embedding_dim = args.vq_embedding_dim
+vq_embedding_num = args.vq_embedding_num
+vq_commitment_cost = args.vq_commitment_cost
 
 if args.highD_data:
     n_lane = 3
@@ -92,7 +93,10 @@ model = DSAB(input_feat_dim = 4,
                 n_head = args.n_head,
                 n_lane = n_lane,
                 graph_layer = graph_layer,
-                dropout= dropout, 
+                vq_embedding_dim = vq_embedding_dim,
+                vq_embedding_num = vq_embedding_num,
+                vq_commitment_cost = vq_commitment_cost,
+                dropout= dropout,
                 decode_steps = decode_steps,
                edge_dropout = edge_dropout,
                self_loop = args.model_self_loop,
@@ -107,6 +111,7 @@ model.float()
 rate_lane = args.loss_rate_lane
 rate_acc =  args.loss_rate_acc
 rate_speed = args.loss_rate_speed
+rate_vq = args.loss_rate_vq
 
 ############ Evaluate results ############ 
 
@@ -131,7 +136,7 @@ for i, graph_data in enumerate(test_dataset):
 
     graph_data = [graph_i.to(device) for graph_i in graph_data]
     with torch.no_grad():  
-        output = model(graph_data) #[n_node, time, feature]
+        output, vq_loss = model(graph_data) #[n_node, time, feature]
 
     graph_x = [graph_i.x for graph_i in graph_data]
     graph_x = torch.stack(graph_x, dim = 1) #[n_node, time, feature]
@@ -175,7 +180,7 @@ dict_eval['average_precision'] = eval_average_precision(label_all, loss_all)
 dict_eval['roc_auc'] = eval_roc_auc(label_all,loss_all)
 
 
-score_path = os.path.join(result_sub_dir, "eval-{}-car-{}.pkl".format(test_args.test_scenario_file,save_name))  
+score_path = os.path.join(result_sub_dir, "eval-{}-car-{}.pkl".format(test_args.test_scenario_file, save_name))
 with open(score_path, 'wb') as f:
     pickle.dump(dict_eval, f)
 
@@ -194,7 +199,7 @@ time_agg_loss = False
 for i, graph_data in enumerate(tqdm(test_dataset)):
     graph_data = [graph_i.to(device) for graph_i in graph_data]
     with torch.no_grad():  
-        output = model(graph_data) #[node, time, feat]
+        output, vq_loss = model(graph_data) #[node, time, feat]
 
     graph_x = [graph_i.x for graph_i in graph_data]
     graph_x = torch.stack(graph_x, dim = 1) # [node, time, feat]
@@ -202,7 +207,7 @@ for i, graph_data in enumerate(tqdm(test_dataset)):
     graph_x = graph_x.to('cpu')
     output = output.cpu()
 
-    loss = cal_loss_car(output, graph_x, rate_lane, rate_speed, rate_acc,time_agg_loss)
+    loss = cal_loss_car(output, graph_x, rate_lane, rate_speed, rate_acc, time_agg_loss)
     index = np.arange(len(graph_x))
     #label
     car_label = [g.label.cpu() for g in graph_data]

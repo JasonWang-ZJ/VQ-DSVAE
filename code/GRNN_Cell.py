@@ -2,6 +2,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from torch_geometric.nn import SAGEConv, TransformerConv, GATConv, GATv2Conv, GraphConv
+from MMAlayer import MMAConv
+from util import edge_indices_to_adj
 from torch_geometric.utils import dropout_adj
 from torch.nn import ReLU
 from torchvision.models.optical_flow.raft import ConvGRU
@@ -33,6 +35,8 @@ class GRNN_Cell(torch.nn.Module):
         self.self_loop = self_loop
         self.head_concat = head_concat
         self.aggr = aggr
+        self.use_mma = False
+        self.sigmoid_k = 2
 
         self._create_parameters_and_layers()
 
@@ -89,16 +93,17 @@ class GRNN_Cell(torch.nn.Module):
                                       aggr=self.aggr)
 
 
+        # elif self.graph_layer == 'mmaConv':
+        #     self.conv_x_z = MMAConv(add_all=, activation=, k=self.sigmoid_k, nfeat=, nhid=, nclass=, dropout=, aggregator_list=,
+        #                             device=)
+        #     self.conv_x_h = MMAConv(add_all=, activation=, k=self.sigmoid_k, nfeat=, nhid=, nclass=, dropout=, aggregator_list=,
+        #                             device=)
+        #     self.conv_x_r = MMAConv(add_all=, activation=, k=self.sigmoid_k, nfeat=, nhid=, nclass=, dropout=, aggregator_list=,
+        #                             device=)
+        #     self.use_mma = True
+
         else:
             raise NotImplementedError("graph layer not implemented")
-
-    def deformation(self, xt, ht, S, Q):
-        for i in range(1, 5):
-            if (i % 2 == 0):
-                ht = (2 * torch.sigmoid(xt @ S)) * ht
-            else:
-                xt = (2 * torch.sigmoid(ht @ Q)) * xt
-        return xt, ht
 
     def _set_hidden_state(self, X, H):
         if H is None:
@@ -149,10 +154,12 @@ class GRNN_Cell(torch.nn.Module):
         Return types:
             * **H** (PyTorch Float Tensor) - Hidden state matrix for all nodes.
         """
+        if self.use_mma:
+            edge_index = edge_indices_to_adj(edge_index)
         H = self._set_hidden_state(X, H)
-        Q = Parameter(torch.Tensor(H.shape[1], X.shape[1])).to(X.device)
-        S = Parameter(torch.Tensor(X.shape[1], H.shape[1])).to(X.device)
-        X, H = self.deformation(X, H, S, Q)  # mogrification
+        # Q = Parameter(torch.Tensor(H.shape[1], X.shape[1])).to(X.device)
+        # S = Parameter(torch.Tensor(X.shape[1], H.shape[1])).to(X.device)
+        # X, H = self.deformation(X, H, S, Q)  # mogrification
         Z = self._calculate_update_gate(X, edge_index, H, edge_weight)
         R = self._calculate_reset_gate(X, edge_index, H, edge_weight)
         H_tilde = self._calculate_candidate_state(X, edge_index, H, R, edge_weight)

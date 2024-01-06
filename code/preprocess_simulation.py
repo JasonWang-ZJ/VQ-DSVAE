@@ -41,7 +41,7 @@ args = parser.parse_args()
 print(args)
 
 read_dir = '../Data/simulation_df/'
-all_maxs, all_mins = pickle.load( open( read_dir+"min_max.pkl", "rb" ) )
+all_maxs, all_mins = pickle.load(open( read_dir+"min_max.pkl", "rb" ))
 
 max_gap = args.attend_dist / (all_maxs.Mileage - all_mins.Mileage) 
 
